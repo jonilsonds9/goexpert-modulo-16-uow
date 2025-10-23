@@ -11,8 +11,12 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+// BEGIN
+// COMMIT
+// ROLLBACK
+
 func TestAddCourse(t *testing.T) {
-	dbt, err := sql.Open("mysql", "root:root@tcp(localhost:3306)/courses")
+	dbt, err := sql.Open("mysql", "root:@tcp(localhost:3306)/go_courses")
 	assert.NoError(t, err)
 
 	dbt.Exec("DROP TABLE if exists `courses`;")

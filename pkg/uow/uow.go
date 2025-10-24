@@ -3,6 +3,8 @@ package uow
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 )
 
 type RepositoryFactory func(tx *sql.Tx) interface{}
@@ -35,4 +37,52 @@ func (u *Uow) Register(name string, fc RepositoryFactory) {
 
 func (u *Uow) UnRegister(name string) {
 	delete(u.Repositories, name)
+}
+
+func (u *Uow) Do(ctx context.Context, fn func(uow *Uow) error) error {
+	if u.Tx != nil {
+		return fmt.Errorf("transaction already started")
+	}
+	tx, err := u.Db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	u.Tx = tx
+	err = fn(u)
+	if err != nil {
+		errRb := u.Rollback()
+		if errRb != nil {
+			return errors.New(fmt.Sprintf("original error: %v, rollback error: %v", err, errRb))
+		}
+		return err
+	}
+	return u.CommitOrRollback()
+}
+
+func (u *Uow) Rollback() error {
+	if u.Tx == nil {
+		return fmt.Errorf("no active transaction to rollback")
+	}
+	err := u.Tx.Rollback()
+	if err != nil {
+		return err
+	}
+	u.Tx = nil
+	return nil
+}
+
+func (u *Uow) CommitOrRollback() error {
+	if u.Tx == nil {
+		return fmt.Errorf("no active transaction to commit")
+	}
+	err := u.Tx.Commit()
+	if err != nil {
+		rbErr := u.Rollback()
+		if rbErr != nil {
+			return errors.New(fmt.Sprintf("commit error: %v, rollback error: %v", err, rbErr))
+		}
+		return err
+	}
+	u.Tx = nil
+	return nil
 }

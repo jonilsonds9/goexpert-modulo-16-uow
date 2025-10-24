@@ -51,7 +51,7 @@ func (u *Uow) GetRepository(ctx context.Context, name string) (interface{}, erro
 	return repo, nil
 }
 
-func (u *Uow) Do(ctx context.Context, fn func(uow *Uow) error) error {
+func (u *Uow) Do(ctx context.Context, fn func(Uow *Uow) error) error {
 	if u.Tx != nil {
 		return fmt.Errorf("transaction already started")
 	}
@@ -64,7 +64,7 @@ func (u *Uow) Do(ctx context.Context, fn func(uow *Uow) error) error {
 	if err != nil {
 		errRb := u.Rollback()
 		if errRb != nil {
-			return errors.New(fmt.Sprintf("original error: %v, rollback error: %v", err, errRb))
+			return errors.New(fmt.Sprintf("original error: %s, rollback error: %s", err.Error(), errRb.Error()))
 		}
 		return err
 	}
@@ -73,7 +73,7 @@ func (u *Uow) Do(ctx context.Context, fn func(uow *Uow) error) error {
 
 func (u *Uow) Rollback() error {
 	if u.Tx == nil {
-		return fmt.Errorf("no active transaction to rollback")
+		return errors.New("no transaction to rollback")
 	}
 	err := u.Tx.Rollback()
 	if err != nil {
@@ -84,14 +84,11 @@ func (u *Uow) Rollback() error {
 }
 
 func (u *Uow) CommitOrRollback() error {
-	if u.Tx == nil {
-		return fmt.Errorf("no active transaction to commit")
-	}
 	err := u.Tx.Commit()
 	if err != nil {
-		rbErr := u.Rollback()
-		if rbErr != nil {
-			return errors.New(fmt.Sprintf("commit error: %v, rollback error: %v", err, rbErr))
+		errRb := u.Rollback()
+		if errRb != nil {
+			return errors.New(fmt.Sprintf("original error: %s, rollback error: %s", err.Error(), errRb.Error()))
 		}
 		return err
 	}
